@@ -41,24 +41,26 @@ type Config struct {
 	// Applies to mode=soft only.
 	PlayerTransportSoftAttempts int `env:"PLAYER_TRANSPORT_SOFT_ATTEMPTS" envDefault:"1"`
 
-<<<<<<< HEAD
 	// Track cache (opt-in): tees played Opus packets to disk so a later play of the
 	// same track — any guild, or /play <history id> — is instant and extraction-free.
 	CacheEnabled bool `env:"CACHE_ENABLED" envDefault:"false"`
+
 	// CacheDir holds the cache blobs and is wiped on boot when CachePersistent is false.
 	CacheDir string `env:"CACHE_DIR" envDefault:"./data/cache"`
+
 	// CacheMaxBytes is the global size cap; least-recently-used tracks are evicted past it.
-	CacheMaxBytes int64 `env:"CACHE_MAX_BYTES" envDefault:"2147483648"` // 2 GiB
+	CacheMaxBytes int64 `env:"CACHE_MAX_BYTES" envDefault:"2147483648"`
+
 	// CachePersistent keeps the cache across restarts (false = transient, wiped on boot).
 	CachePersistent bool `env:"CACHE_PERSISTENT" envDefault:"true"`
+
 	// BufferAheadMs is the anti-skip read-ahead depth in ms (0 disables); masks short
 	// source stalls. Independent of the cache.
 	BufferAheadMs int `env:"BUFFER_AHEAD_MS" envDefault:"10000"`
-=======
+
 	// DefaultStayConnected when true makes the bot remain in voice after the queue empties (24/7 mode).
 	// Can be toggled per-guild via /join and /leave commands.
 	DefaultStayConnected bool `env:"DEFAULT_STAY_CONNECTED" envDefault:"false"`
->>>>>>> 2ae2d2c (feat: add 24/7 voice mode)
 
 	// Logging (applog / zerolog). LOG_FILE empty = stderr only (pretty console).
 	LogLevel      string `env:"LOG_LEVEL" envDefault:"info"`
