@@ -24,6 +24,16 @@ type VoiceAPI interface {
 
 	// SetGuildMusicNotifyChannel stores the slash command text channel for async playback failure UI.
 	SetGuildMusicNotifyChannel(guildID, channelID string)
+
+	// JoinVoiceChannel connects the bot to a voice channel without starting playback.
+	JoinVoiceChannel(guildID, channelID string) error
+
+	// SetStayConnected enables or disables 24/7 stay-connected mode for a guild.
+	// When true, the bot remains in voice after the queue empties.
+	SetStayConnected(guildID, voiceChannelID string, stay bool)
+
+	// IsStayConnected reports whether the guild is in 24/7 stay-connected mode.
+	IsStayConnected(guildID string) bool
 }
 
 // UserVoiceState holds minimal voice channel state for a user.
@@ -76,4 +86,28 @@ func (b *Bot) SetGuildMusicNotifyChannel(guildID, channelID string) {
 		return
 	}
 	b.voice.SetGuildMusicNotifyChannel(guildID, channelID)
+}
+
+// JoinVoiceChannel connects the bot to a voice channel without starting playback.
+func (b *Bot) JoinVoiceChannel(guildID, channelID string) error {
+	if b.voice == nil {
+		return fmt.Errorf("voice service not available")
+	}
+	return b.voice.JoinVoiceChannel(guildID, channelID)
+}
+
+// SetStayConnected enables or disables 24/7 stay-connected mode for a guild.
+func (b *Bot) SetStayConnected(guildID, voiceChannelID string, stay bool) {
+	if b.voice == nil {
+		return
+	}
+	b.voice.SetStayConnected(guildID, voiceChannelID, stay)
+}
+
+// IsStayConnected reports whether the guild is in 24/7 stay-connected mode.
+func (b *Bot) IsStayConnected(guildID string) bool {
+	if b.voice == nil {
+		return false
+	}
+	return b.voice.IsStayConnected(guildID)
 }

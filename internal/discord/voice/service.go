@@ -1,6 +1,7 @@
 package voice
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -29,6 +30,12 @@ type guildMusicStatus struct {
 	MessageID string
 }
 
+// stayConnectedTarget remembers a guild's voice channel for 24/7 rejoin on reconnect.
+type stayConnectedTarget struct {
+	GuildID      string
+	VoiceChannelID string
+}
+
 // Service provides voice/music for a Discord bot: players, sink providers, resolver, and guild music status.
 // It is pluggable: a bot without voice can omit it.
 type Service struct {
@@ -46,6 +53,11 @@ type Service struct {
 	// "Playback failed" when no status message id is stored yet or edit fails.
 	guildMusicNotifyChannel map[string]string
 	guildMusicStatusMu      sync.RWMutex
+
+	// stayConnectedGuilds tracks guilds whose player is in 24/7 stay-connected mode.
+	stayConnectedGuilds map[string]bool
+	// reconnectTargets tracks guilds+voice channels that should be rejoined on reconnect.
+	reconnectTargets map[string]stayConnectedTarget
 }
 
 // New creates a voice service for the given session getter and config.
@@ -59,6 +71,8 @@ func NewVoiceService(getSession SessionGetter, cfg *config.Config, store *storag
 		sinkProviders:           make(map[string]*sink.DiscordSinkProvider),
 		guildMusicStatus:        make(map[string]guildMusicStatus),
 		guildMusicNotifyChannel: make(map[string]string),
+		stayConnectedGuilds:     make(map[string]bool),
+		reconnectTargets:        make(map[string]stayConnectedTarget),
 	}
 }
 
@@ -300,4 +314,94 @@ func (s *Service) InvalidateAllSinks() {
 		}
 		p.InvalidateSink()
 	}
+}
+
+// JoinVoiceChannel connects the bot to the given voice channel without starting playback.
+// The sink provider caches the connection, so the first /play reuses it.
+func (s *Service) JoinVoiceChannel(guildID, channelID string) error {
+	if s.GetOrCreatePlayer(guildID) == nil {
+		return fmt.Errorf("voice service not available")
+	}
+	s.mu.RLock()
+	provider := s.sinkProviders[guildID]
+	s.mu.RUnlock()
+	if provider == nil {
+		return fmt.Errorf("sink provider not available")
+	}
+	_, err := provider.Sink(channelID)
+	return err
+}
+
+// SetStayConnected enables or disables 24/7 stay-connected mode for a guild.
+// When enabled, the bot remains in the voice channel after the queue empties.
+// The voiceChannelID is recorded for reconnection after session restarts.
+func (s *Service) SetStayConnected(guildID, voiceChannelID string, stay bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.stayConnectedGuilds == nil {
+		s.stayConnectedGuilds = make(map[string]bool)
+	}
+	if s.reconnectTargets == nil {
+		s.reconnectTargets = make(map[string]stayConnectedTarget)
+	}
+
+	s.stayConnectedGuilds[guildID] = stay
+
+	if stay && voiceChannelID != "" {
+		s.reconnectTargets[guildID] = stayConnectedTarget{
+			GuildID:        guildID,
+			VoiceChannelID: voiceChannelID,
+		}
+	} else if !stay {
+		delete(s.reconnectTargets, guildID)
+	}
+
+	// Also toggle the player's stay-connected flag.
+	if p, ok := s.players[guildID]; ok {
+		p.SetStayConnected(stay)
+	}
+
+	s.log.Info().Str("guild_id", guildID).Bool("stay", stay).Msg("stay_connected_set")
+}
+
+// IsStayConnected reports whether the guild is in 24/7 stay-connected mode.
+func (s *Service) IsStayConnected(guildID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.stayConnectedGuilds == nil {
+		return false
+	}
+	return s.stayConnectedGuilds[guildID]
+}
+
+// RejoinStayConnectedTargets re-joins all voice channels that were in stay-connected mode.
+// Call after a session reconnect to restore 24/7 presence.
+func (s *Service) RejoinStayConnectedTargets(session *discordgo.Session) {
+	s.mu.RLock()
+	targets := make([]stayConnectedTarget, 0, len(s.reconnectTargets))
+	for _, t := range s.reconnectTargets {
+		targets = append(targets, t)
+	}
+	s.mu.RUnlock()
+
+	for _, t := range targets {
+		_, err := session.ChannelVoiceJoin(context.Background(), t.GuildID, t.VoiceChannelID, false, true)
+		if err != nil {
+			s.log.Warn().Str("guild_id", t.GuildID).Str("channel_id", t.VoiceChannelID).Err(err).Msg("stay_connected_rejoin_failed")
+			continue
+		}
+		s.log.Info().Str("guild_id", t.GuildID).Str("channel_id", t.VoiceChannelID).Msg("stay_connected_rejoined")
+	}
+}
+
+// HandleGuildDelete cleans up stay-connected state when the bot leaves a guild.
+func (s *Service) HandleGuildDelete(guildID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.stayConnectedGuilds, guildID)
+	delete(s.reconnectTargets, guildID)
+	delete(s.players, guildID)
+	delete(s.sinkProviders, guildID)
+	s.log.Info().Str("guild_id", guildID).Msg("stay_connected_cleanup_guild_left")
 }

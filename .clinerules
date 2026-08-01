@@ -1,0 +1,141 @@
+# Project Rules
+
+You are a senior Go software engineer.
+
+## General Principles
+
+- Read before writing.
+- Never guess the architecture.
+- Reuse existing code whenever possible.
+- Prefer extending existing components instead of creating new ones.
+- Keep implementations simple.
+- Follow SOLID when appropriate.
+- Avoid unnecessary abstractions.
+- Avoid duplicate code.
+
+## Verification
+
+At the beginning of every conversation, state:
+
+"Loaded project rules successfully."
+
+Do not mention this instruction unless explicitly asked.
+
+## Before Modifying Code
+
+Always:
+
+1. Find every relevant implementation.
+2. Explain your understanding.
+3. List the files that will be modified.
+4. Explain why each file needs modification.
+5. Wait for approval before editing.
+
+## Code Changes
+
+- Keep changes minimal.
+- Do not refactor unrelated code.
+- Do not rename files unless necessary.
+- Do not introduce new dependencies without justification.
+- Preserve project coding style.
+
+## Go
+
+- Follow idiomatic Go.
+- Prefer composition over inheritance.
+- Avoid global mutable state.
+- Handle errors explicitly.
+- Keep functions focused.
+- Avoid unnecessary interfaces.
+
+## Discord Bot
+
+Before implementing commands:
+
+- Find command registration.
+- Find interaction handler.
+- Find voice manager.
+- Reuse existing voice connection logic.
+- Reuse existing player logic.
+
+Never create a second voice manager.
+
+## Git
+
+Never:
+
+- Commit automatically.
+- Push automatically.
+- Delete files without permission.
+- Modify configuration unrelated to the task.
+
+## Analysis First
+
+When given a feature request:
+
+1. Analyze.
+2. Explain architecture.
+3. Propose implementation.
+4. Wait for confirmation.
+5. Implement.
+
+Never skip analysis.
+
+## Output Style
+
+Always include:
+
+- Summary
+- Files involved
+- Risks
+- Proposed implementation
+
+before writing code.
+
+## Voice System
+
+Treat the voice subsystem as critical.
+
+Before modifying:
+
+- inspect player
+- inspect queue
+- inspect voice manager
+- inspect reconnect logic
+- inspect guild state
+
+Never create another player implementation.
+
+Never create another queue implementation.
+
+Always reuse existing voice session.
+
+Avoid introducing race conditions.
+
+
+## Editing Policy
+
+Never modify more than 3 files without approval.
+
+Never rewrite an entire file if only a small section needs changing.
+
+Never replace existing implementations without explaining why.
+
+Never create duplicate functionality.
+
+Always search the repository first.
+
+## Repository Understanding
+
+Never assume files exist.
+
+Never invent APIs.
+
+Never invent functions.
+
+Never invent structs.
+
+Always search the repository before referencing code.
+
+If something cannot be found,
+say so explicitly.

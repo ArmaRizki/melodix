@@ -49,6 +49,7 @@ const (
 	StatusPaused  Status = "Playback Paused"
 	StatusResumed Status = "Playback Resumed"
 	StatusError   Status = "Error"
+	StatusIdle    Status = "Idle"
 )
 
 var (
@@ -129,6 +130,10 @@ type Player struct {
 	// onPlaybackFailed is set once at construction (Options.OnPlaybackFailed) and never mutated,
 	// so the playback goroutine may read it without a lock.
 	onPlaybackFailed func(guildID string, track parsers.Track, playbackErr error)
+
+	// stayConnected prevents Stop(true) (disconnect) when the queue empties.
+	// When true, auto-advance emits StatusIdle instead of calling Stop with disconnect.
+	stayConnected bool
 }
 
 // Options configures optional Player behavior; the zero value is usable.
@@ -386,6 +391,13 @@ func (p *Player) Queue() []parsers.Track {
 	return slices.Clone(p.queue)
 }
 
+// ClearQueue removes all tracks from the queue without stopping playback.
+func (p *Player) ClearQueue() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.queue = nil
+}
+
 func cloneTrack(tp parsers.Track) parsers.Track {
 	out := tp
 	if len(tp.SourceInfo.AvailableParsers) > 0 {
@@ -459,9 +471,14 @@ func (p *Player) startTrack(track *parsers.Track, resumed bool) error {
 
 		p.mu.Lock()
 		target := p.target
+		stay := p.stayConnected
 		p.mu.Unlock()
 		nextErr := p.PlayNext(target)
 		if errors.Is(nextErr, ErrNoTracksInQueue) {
+			if stay {
+				p.emitStatus(StatusIdle)
+				return
+			}
 			_ = p.Stop(true)
 			return
 		}
@@ -622,4 +639,20 @@ func (p *Player) ChannelID() string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.target
+}
+
+// SetStayConnected sets whether the player should stay in the voice channel
+// when the queue empties (24/7 mode). When true, auto-advance emits StatusIdle
+// instead of calling Stop(true) which would leave the voice channel.
+func (p *Player) SetStayConnected(v bool) {
+	p.mu.Lock()
+	p.stayConnected = v
+	p.mu.Unlock()
+}
+
+// IsStayConnected returns whether the player is in 24/7 mode.
+func (p *Player) IsStayConnected() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.stayConnected
 }

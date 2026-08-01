@@ -27,6 +27,10 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 		}
 	}
 
+	if b.voice != nil {
+		b.voice.RejoinStayConnectedTargets(s)
+	}
+
 	b.log.Info().Str("username", botInfo.Username).Msg("discord_ready")
 }
 
@@ -45,4 +49,12 @@ func (b *Bot) onGuildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 			b.log.Error().Str("guild_id", g.ID).Err(err).Msg("commands_sync_failed")
 		}
 	}
+}
+
+// onGuildDelete fires when the bot leaves a guild or is removed.
+func (b *Bot) onGuildDelete(s *discordgo.Session, g *discordgo.GuildDelete) {
+	if b.voice != nil {
+		b.voice.HandleGuildDelete(g.ID)
+	}
+	b.log.Info().Str("guild_id", g.ID).Msg("guild_removed")
 }

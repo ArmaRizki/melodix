@@ -17,6 +17,7 @@ func (b *Bot) wireSessionHandlers(dg *discordgo.Session, tracker *watchdog.Track
 		b.onReady(s, r)
 	})
 	dg.AddHandler(b.onGuildCreate)
+	dg.AddHandler(b.onGuildDelete)
 	dg.AddHandler(b.onMessageCreate)
 	dg.AddHandler(b.onMessageReactionAdd)
 	dg.AddHandler(b.onInteractionCreate)

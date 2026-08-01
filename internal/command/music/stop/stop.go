@@ -34,6 +34,7 @@ func (c *Stop) Run(ctx interface{}) error {
 
 	s := slashCtx.Session
 	e := slashCtx.Event
+	guildID := e.GuildID
 
 	if err := s.InteractionRespond(e.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -41,23 +42,44 @@ func (c *Stop) Run(ctx interface{}) error {
 		return fmt.Errorf("failed to defer response: %w", err)
 	}
 
-	player := c.Bot.GetOrCreatePlayer(e.GuildID)
-	if player == nil {
+	p := c.Bot.GetOrCreatePlayer(guildID)
+	if p == nil {
 		reply.FollowupEmbedEphemeral(s, e, &discordgo.MessageEmbed{
 			Title:       "🎵 Error",
 			Description: "Music service is not available.",
 		})
 		return nil
 	}
-	if err := player.Stop(true); err != nil {
-		slashCtx.AppLog.Warn().Err(err).Msg("player_stop_failed")
-	}
-	stopMsg := "Playback stopped. Queue cleared."
-	if err := reply.FollowupEmbed(s, e, &discordgo.MessageEmbed{
-		Description: "⏹️ " + stopMsg,
-	}); err != nil {
-		slashCtx.AppLog.Warn().Str("command", "stop").Err(err).Msg("followup_embed_failed")
-		_ = reply.EditResponse(s, e, "⏹️ "+stopMsg)
+
+	stay := c.Bot.IsStayConnected(guildID)
+
+	if stay {
+		// In 24/7 mode: clear queue and stop playback but stay in voice.
+		p.ClearQueue()
+		if err := p.Stop(false); err != nil {
+			slashCtx.AppLog.Warn().Err(err).Msg("player_stop_failed")
+		}
+		if err := c.Bot.UpdatePlaybackStatus(s, e, guildID, reply.IdleEmbed()); err != nil {
+			slashCtx.AppLog.Warn().Str("guild_id", guildID).Err(err).Msg("guild_status_update_failed")
+		}
+		if err := reply.FollowupEmbed(s, e, &discordgo.MessageEmbed{
+			Description: "⏹️ Playback stopped. Queue cleared. Staying in voice (24/7 mode).",
+		}); err != nil {
+			slashCtx.AppLog.Warn().Str("command", "stop").Err(err).Msg("followup_embed_failed")
+			_ = reply.EditResponse(s, e, "⏹️ Playback stopped. Queue cleared. Staying in voice (24/7 mode).")
+		}
+	} else {
+		// Normal mode: disconnect.
+		if err := p.Stop(true); err != nil {
+			slashCtx.AppLog.Warn().Err(err).Msg("player_stop_failed")
+		}
+		stopMsg := "Playback stopped. Queue cleared."
+		if err := reply.FollowupEmbed(s, e, &discordgo.MessageEmbed{
+			Description: "⏹️ " + stopMsg,
+		}); err != nil {
+			slashCtx.AppLog.Warn().Str("command", "stop").Err(err).Msg("followup_embed_failed")
+			_ = reply.EditResponse(s, e, "⏹️ "+stopMsg)
+		}
 	}
 	return nil
 }

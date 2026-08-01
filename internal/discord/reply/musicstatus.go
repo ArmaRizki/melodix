@@ -109,3 +109,12 @@ func PlaybackFinishedEmbed() *discordgo.MessageEmbed {
 		Color:       EmbedColor,
 	}
 }
+
+// IdleEmbed builds the embed shown when the bot is idling in a voice channel (24/7 mode).
+func IdleEmbed() *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Title:       "💤 Idle",
+		Description: "Queue is empty. Waiting for tracks...",
+		Color:       EmbedColor,
+	}
+}

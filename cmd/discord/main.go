@@ -21,6 +21,8 @@ import (
 	"github.com/keshon/melodix/internal/discord/cmdadapter"
 
 	"github.com/keshon/melodix/internal/command/music/history"
+	"github.com/keshon/melodix/internal/command/music/join"
+	"github.com/keshon/melodix/internal/command/music/leave"
 	"github.com/keshon/melodix/internal/command/music/next"
 	"github.com/keshon/melodix/internal/command/music/play"
 	"github.com/keshon/melodix/internal/command/music/stop"
@@ -142,6 +144,8 @@ func registerCommands(bot *discord.Bot, log zerolog.Logger) {
 	cmdadapter.Register(&maintenance.Maintenance{}, mw...)
 	cmdadapter.Register(&play.Play{Bot: bot}, mw...)
 	cmdadapter.Register(&next.Next{Bot: bot}, mw...)
+	cmdadapter.Register(&join.Join{Bot: bot}, mw...)
+	cmdadapter.Register(&leave.Leave{Bot: bot}, mw...)
 	cmdadapter.Register(&stop.Stop{Bot: bot}, mw...)
 	cmdadapter.Register(&history.History{Bot: bot}, mw...)
 }
