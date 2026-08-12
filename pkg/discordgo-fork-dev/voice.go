@@ -374,6 +374,10 @@ func (v *VoiceConnection) websocket(ctx context.Context, endpoint string, token 
 	v.seqAck = -1
 	v.Cond.L.Unlock()
 
+	// forceIdentify makes the next reconnect attempt use a full Identify
+	// handshake instead of a Resume, after a resume has failed.
+	forceIdentify := false
+
 	for i := 0; i < 100; i++ {
 		select {
 		case <-ctx.Done():
@@ -408,7 +412,7 @@ func (v *VoiceConnection) websocket(ctx context.Context, endpoint string, token 
 		v.wsConn = wsConn
 		v.Cond.L.Unlock()
 
-		if i == 0 {
+		if i == 0 || forceIdentify {
 			type voiceHandshakeData struct {
 				ServerID               string `json:"server_id"`
 				UserID                 string `json:"user_id"`
@@ -436,6 +440,7 @@ func (v *VoiceConnection) websocket(ctx context.Context, endpoint string, token 
 				v.failure(err)
 				return
 			}
+			forceIdentify = false
 		} else {
 			type voiceResumeData struct {
 				ServerID  string `json:"server_id"`
@@ -456,11 +461,6 @@ func (v *VoiceConnection) websocket(ctx context.Context, endpoint string, token 
 				SeqAck:    v.seqAck,
 			}}
 			v.Cond.L.Unlock()
-
-			// Reset DAVE on reconnection
-			if v.dave != nil {
-				v.dave.Reset()
-			}
 
 			v.log(LogInformational, "resuming voice websocket")
 			v.log(LogDebug, "resume packet, %#v", data)
@@ -506,31 +506,32 @@ func (v *VoiceConnection) websocket(ctx context.Context, endpoint string, token 
 				default:
 				}
 
-				// 4014 indicates a manual disconnection by someone in the guild;
-				// 4017 indicates DAVE protocol required but not supported;
-				// 4021 indicates that the voice connection was dropped due to rate limiting;
-				// 4022 indicates that the call was terminated (e.g., channel deleted, voice server changed, call ended).
-				// we shouldn't reconnect.
+				// Close frames with these codes mean a graceful end and must not
+				// reconnect: 4014 manual disconnect, 4017 DAVE required but
+				// unsupported, 4021 rate limited, 4022 call terminated.
 				if websocket.IsCloseError(err, 4014, 4017, 4021, 4022) {
 					v.log(LogInformational, "received close code disconnected")
-
 					return
 				}
 
-				// 4015 indicates that voice server crashed so we should reconnect.
-				// 1006 (CloseAbnormalClosure) indicates a network-level disruption
-				// (unexpected EOF, TCP reset, etc.) — also recoverable via reconnect.
-				// Other code is our bad, should never happen, we stop reconnecting to avoid loop.
-				if websocket.IsUnexpectedCloseError(err, 4015, websocket.CloseAbnormalClosure) {
-					err := fmt.Errorf("voice websocket closed, %w", err)
-					v.failure(err)
-					return
-				}
+				// Everything else is recoverable via reconnect:
+				//  - plain network errors without a close frame (unexpected EOF,
+				//    TCP reset, read timeout) and close frames 4015 / 1006;
+				//  - any other close frame the server sent (e.g. 4006/4009 after a
+				//    failed resume) — the next attempt falls back to a full
+				//    Identify handshake, which starts a fresh voice session.
+				// The 100-attempt cap below bounds any pathological reconnect loop.
 
 				v.log(LogInformational, "voice socket disconnected, reconnecting, %v", err)
 
 				// close goroutine related to websocket
 				cancel()
+
+				// A failed resume usually means the server dropped our voice session,
+				// so fall back to a full re-identify handshake on the next attempt.
+				if i > 0 && !forceIdentify {
+					forceIdentify = true
+				}
 
 				// reconnect
 				break
