@@ -44,12 +44,16 @@ type Config struct {
 	// Track cache (opt-in): tees played Opus packets to disk so a later play of the
 	// same track — any guild, or /play <history id> — is instant and extraction-free.
 	CacheEnabled bool `env:"CACHE_ENABLED" envDefault:"false"`
+
 	// CacheDir holds the cache blobs and is wiped on boot when CachePersistent is false.
 	CacheDir string `env:"CACHE_DIR" envDefault:"./data/cache"`
+
 	// CacheMaxBytes is the global size cap; least-recently-used tracks are evicted past it.
-	CacheMaxBytes int64 `env:"CACHE_MAX_BYTES" envDefault:"2147483648"` // 2 GiB
+	CacheMaxBytes int64 `env:"CACHE_MAX_BYTES" envDefault:"2147483648"`
+
 	// CachePersistent keeps the cache across restarts (false = transient, wiped on boot).
 	CachePersistent bool `env:"CACHE_PERSISTENT" envDefault:"true"`
+
 	// BufferAheadMs is the anti-skip read-ahead depth in ms (0 disables); masks short
 	// source stalls. Independent of the cache.
 	BufferAheadMs int `env:"BUFFER_AHEAD_MS" envDefault:"10000"`
